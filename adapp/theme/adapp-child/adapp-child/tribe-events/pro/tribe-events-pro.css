@@ -1,0 +1,18 @@
+.tribe-events-virtual-event .tribe-events-schedule h2 {
+    margin-top: 8px!important;
+    width: 100%!important;
+}
+
+.single-tribe_events .tribe-events-schedule .tribe-events-divider {
+    display: none!important;
+}
+
+.event-is-recurring a{
+    color:#334aff!important;
+}
+.single-tribe_events .tribe-events-schedule .tribe-events-cost {
+    background: #ececec;
+    padding: 4px 18px!important;
+    border-radius: 19px;
+    font-size: 16px!important;
+}

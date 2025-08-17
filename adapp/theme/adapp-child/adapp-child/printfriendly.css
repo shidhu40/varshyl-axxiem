@@ -1,0 +1,14 @@
+#pf-ft{display:none!important;}
+#pf-content .tribe-events-ajax-loading, #tribe-events-bar, .tribe-events-nav-pagination, .tribe-events-visuallyhidden, .tribe-events-ical{display:none!important;}
+#pf-body th, #pf-body td {
+    width: auto;
+    padding: 0.5rem;
+    border: 1px solid #eaecef;
+}
+#pf-body h3.tribe-events-month-event-title {
+    font-size: 1.0rem;
+}
+#pf-content .tribe-events-virtual-virtual-event__icon {display:none!important}
+#pf-content .tribe-common-c-svgicon {display:none!important}
+.tribe-events-virtual-virtual-event em {display:!important}
+.header-to-links, .tribe-events-view-loader, .skip-link {display:none!important}
