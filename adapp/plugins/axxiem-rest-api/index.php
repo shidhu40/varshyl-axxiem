@@ -142,6 +142,16 @@ class Axxiem_REST_API_Endpoints {
             'methods' => 'POST',
             'callback' => array( 'Axxiem_REST_API_Endpoints', 'getChatUsersList' ),
         ) );
+
+		register_rest_route( 'axxiem', '/list-events', array(
+            'methods' => 'POST',
+            'callback' => array( 'Axxiem_REST_API_Endpoints', 'getEvents' ),
+        ) );
+
+		register_rest_route( 'axxiem', '/get-event', array(
+            'methods' => 'POST',
+            'callback' => array( 'Axxiem_REST_API_Endpoints', 'getEventById' ),
+        ) );
     }
 
     /**
@@ -2090,6 +2100,273 @@ class Axxiem_REST_API_Endpoints {
 			$breadcrumbArray['parent'] = (new Axxiem_REST_API_Endpoints())->get_category_breadcrumb($parent->parent);
 		}
 		return $breadcrumbArray;
+	}
+
+
+	public static function getEvents($request) {
+
+		parse_str(file_get_contents("php://input"), $request_data);
+		
+		$request = !empty($request_data['data']) ? $request_data['data'] : $request_data;
+
+		$response = array(
+			'status' => 1,
+			'message' => '',       
+			// 'total_pages' => 0,
+			// 'events' => array(),
+			// 'total' => 0
+		);
+
+		$records = array();
+	
+		$default_page_limit = 50;
+	
+		$total_pages = 0;
+	
+		$domains = array(
+			'https://demo11.axxiem.com/'
+		);
+	
+		$api_uri = '/wp-json/tribe/events/v1/events/';
+
+		$user_id = $request["user_id"];
+		
+		$token = $request["token"];			
+
+		if (empty($user_id) || empty($token)) {
+			$response['status'] = 0;
+			$response['message'] = "Required field missing";
+			return $response;
+		}	
+		
+	
+		$start_date = isset($request['start_date']) ? trim($request['start_date']) : '';
+	
+		if(empty($start_date)){
+			$response['status'] = 0;
+			$response['message'] = 'start_date is required.';
+			return $response;
+		}
+	
+		$end_date = isset($request['end_date']) ? trim($request['end_date']) : '';
+	
+		if(empty($end_date)){
+			$response['status'] = 0;
+			$response['message'] = 'end_date is required.';
+			return $response;
+		}
+	
+		$page = empty($request['page']) ? 1 : ((int) trim($request['page']));
+	
+		$limit =  empty($request['limit']) ? $default_page_limit : ((int) trim($request['limit']));
+	
+		$response['page'] = $page;
+		$response['limit'] = $limit;
+		$response['start_date'] = $start_date;
+		$response['end_date'] = $end_date;
+	
+		$query_string = array(
+			'start_date' => $start_date,
+			'end_date' => $end_date,
+			'status' => 'publish',
+			'page' => $page,
+			'per_page' => $limit
+		);
+	
+		foreach($domains as $domain){        
+	
+			$api_url = $domain . '/'.  $api_uri . '/?'. http_build_query($query_string);
+	
+			$api_url = preg_replace('/([^:])(\/{2,})/', '$1/', $api_url); 
+			
+			$api_response = wp_remote_get($api_url);
+	
+			if (is_wp_error($api_response)){           
+				$response['message'] = 'Unable to retrieve events';
+				$response['status'] = 0;
+	
+				return $response;
+			}      
+		   
+			$data = json_decode(wp_remote_retrieve_body($api_response), true);
+	
+			if (!empty($data['events'])){
+				foreach($data['events'] as $event){
+	
+	
+					$organizers = array();
+	
+					if(!empty($event['organizer'])){
+						foreach($event['organizer'] as $organizer){
+							$organizers[] = array(
+								'id' => $organizer['id'],
+								'author' => $organizer['author'],
+								'organizer' => $organizer['organizer'],
+								'global_id' => $organizer['global_id']
+							);
+						}
+					}
+	
+					$start_timestap = strtotime($event['start_date']);
+	
+					$records[] = array(
+						'id' => $event['id'],
+						'global_id' => $event['global_id'],                    
+						'author' => $event['author'],
+						'date' => $event['date'],
+						'modified' => $event['modified'],
+						'url' => $event['url'],
+						'rest_url' => $event['rest_url'],
+						'title' => $event['title'],
+						'all_day' => $event['all_day'],
+						'start_date' => $event['start_date'],
+						'start_date_details' => $event['start_date_details'],
+						'end_date' => $event['end_date'],
+						'end_date_details' => $event['end_date_details'],
+						'timezone' => $event['timezone'],
+						'timezone_abbr' => $event['timezone_abbr'],
+						'cost' => $event['cost'],
+						'cost_details' => $event['cost_details'],
+						'website' => $event['website'],
+						'organizer' => $organizers,
+						'is_virtual' => $event['is_virtual'],
+						'virtual_url' => $event['virtual_url'],
+						'virtual_video_source' => $event['virtual_video_source'],
+						'start_timestamp' => $start_timestap
+					);
+				}
+			}
+	
+			if(isset($data['total_pages']) && ($data['total_pages'] > $total_pages)){
+				$total_pages = $data['total_pages']; 
+			}
+				   
+		}
+	
+	
+		if(!empty($records)){
+	
+			// sort based on start_timestamp
+			usort($records, function($a, $b) {           
+				
+				if ($a['start_timestamp'] == $b['start_timestamp']) {
+					return 0;
+				}
+				return ($a['start_timestamp'] < $b['start_timestamp']) ? -1 : 1;
+			});
+			
+			$response['message'] = 'Events retrieved successfully.';
+		}  else{
+			$response['message'] = 'There is no event.';
+		}
+
+		
+	
+		$response['total'] = count($records);
+			
+		$response['events'] = $records;
+	
+		$response['total_pages'] = $total_pages;   
+	
+		return $response;
+	}
+
+	public static function getEventById($request) {
+
+		parse_str(file_get_contents("php://input"), $request_data);
+		
+		$request = !empty($request_data['data']) ? $request_data['data'] : $request_data;
+
+		$response = array(
+			'status' => 1,
+			'message' => '',
+		);
+	
+		$api_url_format = '{domain}/wp-json/tribe/events/v1/events/{id}';
+	
+		$domains = array(
+			'demo11.axxiem.com' => 'https://demo11.axxiem.com/'
+		);
+
+
+		$user_id = $request["user_id"];
+		
+		$token = $request["token"];			
+
+		if (empty($user_id) || empty($token)) {
+			$response['status'] = 0;
+			$response['message'] = "Required field missing";
+			return $response;
+		}	
+	
+		$global_id = isset($request['global_id']) ? trim($request['global_id']) : '';
+	
+		if(empty($global_id)){
+			$response['status'] = 0;
+			$response['message'] = 'global_id is required.';
+			return $response;
+		}
+	
+		$data = parse_url($global_id);
+	
+		$domain = isset($data['path']) ? $data['path'] : '';
+	
+		if(empty($domain)){
+			$response['status'] = 0;
+			$response['message'] = 'Could not fetch domain path from global_id.';
+			return $response;
+		}
+	
+		if(!array_key_exists($domain, $domains)){
+			$response['status'] = 0;
+			$response['message'] = 'Invalid domain path in global_id.';
+			return $response;
+		}
+	
+		parse_str( parse_url($global_id, PHP_URL_QUERY), $data );
+	
+		$event_id = isset($data['id']) ? (int) $data['id'] : '';
+	
+		if(empty($event_id)){
+			$response['status'] = 0;
+			$response['message'] = 'Event id is required.';
+			return $response;
+		}
+	
+		// if ($response['status'] === 0){
+		// 	return $response;
+		// }
+	
+		$domain_url = $domains[$domain];
+	
+		$api_url = str_replace(array('{domain}', '{id}'), array($domain_url, $event_id), $api_url_format);
+	
+		$api_url = preg_replace('/([^:])(\/{2,})/', '$1/', $api_url); 
+			
+		$api_response = wp_remote_get($api_url);
+	
+		if (is_wp_error($api_response)){
+			$response['error_message'] = $api_response->get_error_message() ;
+			$response['message'] = 'Unable to retrieve event';
+			$response['status'] = 0;
+	
+			return $response;
+		}      
+	
+		$status_code = wp_remote_retrieve_response_code( $api_response );
+	   
+		$data = json_decode(wp_remote_retrieve_body($api_response), true);
+	
+		if($status_code == 200){
+			$response['status'] = 1;
+			$response['event'] = $data;
+			$response['message'] = 'Event retrieved successfully.';
+		} else{
+			$response['status'] = 0;
+			$response['message'] = $data['message'];
+		}   
+	
+		return $response;
 	}
 }
 add_action( 'rest_api_init', array( 'Axxiem_REST_API_Endpoints', 'register_endpoints' ) );
